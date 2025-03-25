@@ -6,9 +6,9 @@ import ApiSuccess from "../utils/ApiSuccess.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 
-const accessTokenAndrefreshToken = (userId)=>{
+const accessTokenAndrefreshToken =async (userId)=>{
     try {
-        const finduserId = User.findById(userId)
+        const finduserId = await User.findById(userId)
         if (!finduserId) {
             throw new ApiError(404, "User not found")
         }
@@ -16,7 +16,8 @@ const accessTokenAndrefreshToken = (userId)=>{
         const refreshToken = finduserId.genarateRefreshToken()
 
         finduserId.refreshToken = refreshToken
-        finduserId.save({ validateBeforeSave: false })
+        await finduserId.save({ validateBeforeSave: false })
+        return {accessToken, refreshToken}
     } catch (error) {
      throw new ApiError(500, "Token generation failed")   
     }
@@ -46,7 +47,7 @@ const userRegister = asyncHandaler(async (req, res) => {
     console.log("findAvatar:", findAvatar);
     const findCoverphoto = req.files?.coverphoto[0]?.path;
 
-    if (!findAvatar || !findCoverphoto) {
+    if (!(findAvatar || findCoverphoto)) {
         throw new ApiError(400, "Avatar and coverphoto are required")
     }
    
@@ -77,7 +78,7 @@ const userRegister = asyncHandaler(async (req, res) => {
             if (!createUser) {
                 throw new ApiError(500, "User registration failed")
             } else {
-                User.findById(createUser._id).select("-password", "-refreshToken") 
+                User.findById(createUser._id).select("-password -refreshToken") 
             }   
             
             return res.status(201).json({ message: "User registration successful", success: true, data: createUser })
@@ -88,10 +89,13 @@ const userRegister = asyncHandaler(async (req, res) => {
 
 const userLogin = asyncHandaler(async(req, res) => {
     const {username, email, password}= req.body
-    if ([username, email, password].some(item => !item?.trim())) {
-        throw new ApiError(400, "All fields are required")
-    }
-
+    // if ([username, email, password].some(item => !item?.trim())) {
+    //     throw new ApiError(400, "All fields are required")
+    // }
+    if (!(username || email)) {
+        throw new ApiError(400, "username or email is required");
+      }
+    
     const findUser = await User.findOne({$or:[{username}, {email}]})
     if (!findUser) {
         throw new ApiError(404, "User not found")
@@ -102,7 +106,7 @@ const userLogin = asyncHandaler(async(req, res) => {
         throw new ApiError(401, "Invalid password")
     }
 
-    const {accessToken, refreshToken} = findUser.accessTokenAndrefreshToken(findUser._id)
+    const {accessToken, refreshToken} = await accessTokenAndrefreshToken(findUser._id)
 
     findUser.accessToken = accessToken
     findUser.refreshToken = refreshToken
@@ -118,7 +122,7 @@ const userLogin = asyncHandaler(async(req, res) => {
 })
 
 const logout = asyncHandaler(async(req, res) => {
-    const findUserId = User.findByIdAndUpdate(req.user._id, {$set: {refreshToken: undefined}
+    const findUserId = User.findByIdAndUpdate(req.user._id, {$unset: {refreshToken: 1}
     })
 
   return res.status(200).clearCookie("accessToken", accessToken, options).clearCookie("refreshToken", refreshToken, options).json(new ApiSuccess({ message: "Logout successful", success: true, data: findUserId})) 
@@ -162,7 +166,7 @@ const passwordReset = asyncHandaler(async(req, res) => {
         throw new ApiError(401, "Invalid password") 
     }
     finduser.password = newPassword
-    finduser.save({ validateBeforeSave: false })
+    await finduser.save({ validateBeforeSave: false })
     return res.status(200).json({ message: "Password reset successful", success: true, data: finduser})
 })
 
@@ -189,7 +193,7 @@ const userAvatarUpdate = asyncHandaler(async(req, res) => {
 }
 const newAvatar = await uploadOnCloudinary(findPath)
 
-const updateAvatar = await User.findByIdAndUpdate(req.user?._id, {$set:{avatar: newAvatar.url}}, {new: true}).select("-password", "-refreshToken") 
+const updateAvatar = await User.findByIdAndUpdate(req.user?._id, {$set:{avatar: newAvatar.url}}, {new: true}).select("-password -refreshToken") 
 
 return res.status(200).json(new ApiSuccess({ message: "Avatar updated succesfully", success: true, data: updateAvatar}))
 })
@@ -201,7 +205,7 @@ const userCoverphotoUpdate = asyncHandaler(async(req, res) => {
 }
 const newCoverphoto = await uploadOnCloudinary(findOldCoverPhotoPath)
 
-const updateCoverphoto = await User.findByIdAndUpdate(req.user?._id, {$set:{coverphoto: newCoverphoto.url}}, {new: true}).select("-password", "-refreshToken")
+const updateCoverphoto = await User.findByIdAndUpdate(req.user?._id, {$set:{coverphoto: newCoverphoto.url}}, {new: true}).select("-password -refreshToken")
 
 return res.status(200).json(new ApiSuccess({ message: "Coverphoto updated succesfully", success: true, data: updateCoverphoto}))
 

@@ -2,9 +2,9 @@ import {v2 as cloudinary} from 'cloudinary';
 import fs from 'fs';
 
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.API_KEY,
-    api_secret: process.env.API_SECRET
+    cloud_name: 'raimul',
+    api_key: "962331596784271",
+    api_secret: "RFzWqOL4FU2vicdhKhVomcb_sGY"
 })
 
 export const uploadOnCloudinary = async (file) => {
